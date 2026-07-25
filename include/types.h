@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <lmdb.h>
-
+#include <liburing.h>
 
 #define BLAKE3_HASH_LEN 32
 #define NONCE_LEN 24
@@ -39,5 +39,11 @@ typedef struct{
     uint64_t active_offset;     // Byte offset where the NEXT write will happen
     uint64_t seg_size;
 } cas_storage_t;
+
+typedef struct{
+    struct io_uring ring;
+    uint32_t q_depth;
+    uint32_t pending_sqe;
+} cas_io_ring;
 
 #endif

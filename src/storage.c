@@ -6,13 +6,18 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
 
 cas_storage_t* cas_storage_init(const char* storage_dir);
 void cas_storage_close(cas_storage_t* storage);
 
 bool cas_duplication_check(cas_storage_t* storage, const cas_hash_t* hash);
-int cas_storage_put_chunk(cas_storage_t* storage, const cas_hash_t* hash, const void* data, uint32_t len);
-int cas_storage_get_chunk(cas_storage_t* storage, const cas_hash_t* hash, void* out_buffer, uint32_t* out_len);
+int cas_storage_put(cas_storage_t* storage, const cas_hash_t* hash, const void* data, uint32_t len);
+int cas_storage_get(cas_storage_t* storage, const cas_hash_t* hash, void* output, uint32_t* out_len);
 
 //create or open seg file
 static int open_seg_file(cas_storage_t *storage, uint32_t seg_id){
@@ -179,15 +184,14 @@ int cas_store_get(cas_storage_t *storage, cas_hash_t *hash, const void* output, 
     char filepath[PATH_MAX_LEN];
     snprintf(filepath, sizeof(filepath), "%s/segment_%04u.blob", storage->store_dir, loc.seg_id);
 
-    FILE *fp = fopen(filepath, "rb");
-    if (!fp) return -1;
+    int fd = open(filepath, O_RDONLY);
+    if (fd < 0) return -1;
 
     // Read directly from offset into user's output buffer
-    fseek(fp, loc.offset, SEEK_SET);
-    size_t bytes_read = fread(output, 1, loc.len, fp);
-    fclose(fp);
+    ssize_t bytes_read = pread(fd, output, loc.len, loc.offset);
+    close(fd);
 
-    if (bytes_read != loc.len) {
+    if (bytes_read != (ssize_t)loc.len) {
         return -1;
     }
 
