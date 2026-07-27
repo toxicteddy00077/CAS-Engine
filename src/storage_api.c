@@ -80,6 +80,9 @@ int cas_storage_list_dir(cas_storage_t *s, const char *path, void *buf, void *fi
     MDB_val key, mdbval;
 
     while (mdb_cursor_get(cursor, &key, &mdbval, MDB_NEXT) == 0) {
+        // Skip binary hash keys (exactly 32 bytes)
+        if (key.mv_size == BLAKE3_HASH_LEN) continue;
+        
         // Keys are null-terminated strings for metadata and chunk entries
         if (key.mv_size == 0 || ((char*)key.mv_data)[key.mv_size - 1] != '\0') continue;
         const char *k = key.mv_data;

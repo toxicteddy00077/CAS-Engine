@@ -25,10 +25,15 @@ int main(int argc, char *argv[]) {
     const char *storage_dir = argv[1];
     const char *mountpoint  = argv[2];
 
+    if (cas_crypto_init(storage_dir) != 0) {
+        fprintf(stderr, "cas_fs: failed to initialize crypto key\n");
+        return 2;
+    }
+
     cas_storage_t *storage = cas_storage_init(storage_dir);
     if (!storage) {
         fprintf(stderr, "cas_fs: failed to initialize storage at '%s' (errno=%d)\n", storage_dir, errno);
-        return 2;
+        return 3;
     }
 
     int fuse_argc = argc - 1;
