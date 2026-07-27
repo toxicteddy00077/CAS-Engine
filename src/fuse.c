@@ -1,4 +1,6 @@
 #include "../include/types.h"
+#include "../include/storage.h"
+#include "../include/engine.h"
 #include <lmdb.h>
 #include <stdint.h>
 #include <string.h>
@@ -10,6 +12,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#define FUSE_USE_VERSION 30
 #include <fuse3/fuse.h>
 
 static int cas_fuse_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {

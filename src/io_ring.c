@@ -15,9 +15,9 @@
 //ring init
 cas_io_ring* cas_io_ring_init(const uint32_t depth);
 //ring close
-void cas_io_ring_close();
+void cas_io_ring_close(cas_io_ring* ring);
 //async read/write req
-int cas_io_ring_read_write(cas_io_ring* ring, int fd, void* buffer, uint32_t len, off_t offset, int rw_flags);
+int cas_io_ring_read_write(cas_io_ring* ring, int fd, void* buffer, uint32_t len, off_t offset, int rw_flags, void *user_data);
 //submit req
 int cas_io_ring_submit(cas_io_ring* ring);
 //completions

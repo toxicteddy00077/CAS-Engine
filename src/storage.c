@@ -12,19 +12,21 @@
 #include <sys/stat.h>
 
 
-cas_storage_t* cas_storage_init(const char* storage_dir);
+cas_storage_t* cas_store_init(const char* storage_dir);
 void cas_storage_close(cas_storage_t* storage);
 
 bool cas_duplication_check(cas_storage_t* storage, const cas_hash_t* hash);
 int cas_storage_put(cas_storage_t* storage, const cas_hash_t* hash, const void* data, uint32_t len);
 int cas_storage_get(cas_storage_t* storage, const cas_hash_t* hash, void* output, uint32_t* out_len);
 
+cas_storage_t* cas_storage_init(const char* storage_dir) { return cas_store_init(storage_dir); }
+
 //create or open seg file
 static int open_seg_file(cas_storage_t *storage, uint32_t seg_id){
     char filepath[256];
     snprintf(filepath, sizeof(filepath), "%s/segment_%04u.blob", storage->store_dir, seg_id);
 
-    int fd = fopen(filepath, O_RDWR | O_CREAT, 0644);
+    int fd = open(filepath, O_RDWR | O_CREAT, 0644);
     if (fd == -1) {
         return -1;
     }
@@ -38,30 +40,37 @@ static int open_seg_file(cas_storage_t *storage, uint32_t seg_id){
     storage->active_fd = fd;
     storage->active_seg_id = seg_id;
     storage->active_offset = (uint64_t)offset_len;
+    return 0;
 }
 
 
 //init
 cas_storage_t* cas_store_init(const char *storage_dir){
-    if (mkdir(storage_dir, 0755) != 0) return NULL;
+    if (mkdir(storage_dir, 0755) != 0 && errno != EEXIST) return NULL;
 
     cas_storage_t* storage = calloc(1, sizeof(cas_storage_t));
     if (!storage) return NULL;
 
     storage->store_dir = strdup(storage_dir);
     storage->seg_size = MAX_SEGMENT_SIZE;
+    storage->active_fd = -1;
 
     // 1. Initialize LMDB Environment
     if (mdb_env_create(&storage->env) != 0) goto cleanup;
 
-    // Set map size (e.g., 10 GB virtual memory map limit)
+    // Set map size (e.g., 1 GB virtual memory map limit)
     if (mdb_env_set_mapsize(storage->env, (size_t)1 * 1024 * 1024 * 1024) != 0) goto cleanup;
 
     // Allow multiple named databases inside environment
     if (mdb_env_set_maxdbs(storage->env, 4) != 0) goto cleanup;
 
+    // Create/open LMDB subdirectory inside storage_dir
+    char lmdb_dir[PATH_MAX_LEN];
+    snprintf(lmdb_dir, sizeof(lmdb_dir), "%s/lmdb", storage_dir);
+    if (mkdir(lmdb_dir, 0755) != 0 && errno != EEXIST) goto cleanup;
+
     // Open environment directory
-    if (mdb_env_open(storage->env, storage->store_dir, MDB_NOSUBDIR, 0644) != 0) goto cleanup;
+    if (mdb_env_open(storage->env, lmdb_dir, 0, 0644) != 0) goto cleanup;
 
     // 2. Open "chunks" database table inside LMDB
     MDB_txn* txn;
@@ -164,17 +173,17 @@ int cas_store_put(cas_storage_t *storage, cas_hash_t *hash, const void* data, ui
 }
 
 //get
-int cas_store_get(cas_storage_t *storage, cas_hash_t *hash, const void* output, uint32_t out_len){
-    if (!storage || !hash) return false;
+int cas_store_get(cas_storage_t *storage, cas_hash_t *hash, void *output, uint32_t *out_len){
+    if (!storage || !hash || !output || !out_len) return -1;
 
     MDB_txn* txn;
-    if (mdb_txn_begin(storage->env, NULL, 0, &txn) != 0) return false;
+    if (mdb_txn_begin(storage->env, NULL, 0, &txn) != 0) return -1;
 
     MDB_val key = { .mv_size = sizeof(hash->bytes), .mv_data = (void*)hash->bytes };
     MDB_val val;
     if (mdb_get(txn, storage->dbi_chunks, &key, &val) != 0) {
         mdb_txn_abort(txn);
-        return false;
+        return -1;
     }
     cas_loc_t loc;
     memcpy(&loc, val.mv_data, sizeof(cas_loc_t));
@@ -187,6 +196,8 @@ int cas_store_get(cas_storage_t *storage, cas_hash_t *hash, const void* output, 
     int fd = open(filepath, O_RDONLY);
     if (fd < 0) return -1;
 
+    if (*out_len < loc.len) { close(fd); return -1; }
+
     // Read directly from offset into user's output buffer
     ssize_t bytes_read = pread(fd, output, loc.len, loc.offset);
     close(fd);
@@ -195,6 +206,14 @@ int cas_store_get(cas_storage_t *storage, cas_hash_t *hash, const void* output, 
         return -1;
     }
 
-    out_len = loc.len;
+    *out_len = loc.len;
     return 0;
+}
+
+int cas_storage_put(cas_storage_t *storage, const cas_hash_t *hash, const void* data, uint32_t len) {
+    return cas_store_put(storage, (cas_hash_t *)hash, data, len);
+}
+
+int cas_storage_get(cas_storage_t *storage, const cas_hash_t *hash, void *output, uint32_t *out_len) {
+    return cas_store_get(storage, (cas_hash_t *)hash, output, out_len);
 }

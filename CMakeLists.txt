@@ -10,30 +10,41 @@ add_compile_options(-Wall -Wextra -O3 -g -D_FILE_OFFSET_BITS=64)
 # Find Required Package Libraries
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FUSE3 REQUIRED fuse3)
+pkg_check_modules(LIBURING REQUIRED liburing)
+pkg_check_modules(LMDB REQUIRED lmdb)
+pkg_check_modules(LIBBLAKE3 REQUIRED libblake3)
+pkg_check_modules(LIBSODIUM REQUIRED libsodium)
 
 # Include Directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
     ${FUSE3_INCLUDE_DIRS}
+    ${LIBURING_INCLUDE_DIRS}
+    ${LMDB_INCLUDE_DIRS}
+    ${LIBBLAKE3_INCLUDE_DIRS}
+    ${LIBSODIUM_INCLUDE_DIRS}
 )
 
 # Source Files
 set(SOURCES
-    src/main.c
-    src/crypto.c
-    src/storage.c
+    src/driver.c
+    src/engine.c
+    src/fuse.c
+    src/hash.c
     src/io_ring.c
-    src/fuse_layer.c
+    src/storage.c
+    src/storage_api.c
 )
 
 # Executable Target
 add_executable(cas_fs ${SOURCES})
 
-# Link Libraries: libfuse3, liburing, liblmdb, libblake3, libcrypto
+# Link Libraries
 target_link_libraries(cas_fs PRIVATE
     ${FUSE3_LIBRARIES}
-    uring
-    lmdb
-    blake3
-    crypto
+    ${LIBURING_LIBRARIES}
+    ${LMDB_LIBRARIES}
+    ${LIBBLAKE3_LIBRARIES}
+    ${LIBSODIUM_LIBRARIES}
+    pthread
 )

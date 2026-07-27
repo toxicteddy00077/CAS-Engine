@@ -11,6 +11,7 @@
 #define NONCE_LEN 24
 #define MAX_SEGMENT_SIZE (1024 * 1024 * 1024) // 1 GB Segment files
 #define PATH_MAX_LEN 4096
+#define CAS_CHUNK_SIZE (64 * 1024) // 64 KB chunks for CAS
 
 typedef struct {
     uint8_t bytes[BLAKE3_HASH_LEN];
@@ -45,5 +46,7 @@ typedef struct{
     uint32_t q_depth;
     uint32_t pending_sqe;
 } cas_io_ring;
+
+extern cas_storage_t *g_storage;
 
 #endif
