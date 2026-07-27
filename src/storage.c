@@ -55,13 +55,11 @@ cas_storage_t* cas_store_init(const char *storage_dir){
     storage->seg_size = MAX_SEGMENT_SIZE;
     storage->active_fd = -1;
 
-    // 1. Initialize LMDB Environment
     if (mdb_env_create(&storage->env) != 0) goto cleanup;
 
     // Set map size (e.g., 1 GB virtual memory map limit)
     if (mdb_env_set_mapsize(storage->env, (size_t)1 * 1024 * 1024 * 1024) != 0) goto cleanup;
 
-    // Allow multiple named databases inside environment
     if (mdb_env_set_maxdbs(storage->env, 4) != 0) goto cleanup;
 
     // Create/open LMDB subdirectory inside storage_dir
@@ -81,7 +79,6 @@ cas_storage_t* cas_store_init(const char *storage_dir){
     }
     if (mdb_txn_commit(txn) != 0) goto cleanup;
 
-    // 3. Open initial segment file (segment_0001.blob)
     if (open_seg_file(storage, 1) != 0) goto cleanup;
 
     return storage;
@@ -143,11 +140,8 @@ int cas_store_put(cas_storage_t *storage, cas_hash_t *hash, const void* data, ui
 
     // Write raw encrypted buffer to current segment file offset
     ssize_t bytes_written = pwrite(storage->active_fd, data, len, storage->active_offset);
-    if (bytes_written != (ssize_t)len) {
-        return -1;
-    }
+    if (bytes_written != (ssize_t)len) { return -1; }
 
-    // Construct location record
     cas_loc_t loc = {
         .seg_id = storage->active_seg_id,
         .offset = storage->active_offset,
@@ -166,8 +160,6 @@ int cas_store_put(cas_storage_t *storage, cas_hash_t *hash, const void* data, ui
         }
 
         if (mdb_txn_commit(txn) != 0) return -1;
-
-        // Advance write head pointer
         storage->active_offset += len;
         return 0;
 }
@@ -197,14 +189,10 @@ int cas_store_get(cas_storage_t *storage, cas_hash_t *hash, void *output, uint32
     if (fd < 0) return -1;
 
     if (*out_len < loc.len) { close(fd); return -1; }
-
-    // Read directly from offset into user's output buffer
     ssize_t bytes_read = pread(fd, output, loc.len, loc.offset);
     close(fd);
 
-    if (bytes_read != (ssize_t)loc.len) {
-        return -1;
-    }
+    if (bytes_read != (ssize_t)loc.len) { return -1; }
 
     *out_len = loc.len;
     return 0;

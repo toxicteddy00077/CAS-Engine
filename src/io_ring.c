@@ -85,7 +85,6 @@ int cas_io_ring_get_completions(cas_io_ring* ring, void **output, uint32_t count
 
     struct io_uring_cqe *cqe;
 
-    // Wait until at least 1 completion is ready (or up to 'count')
     int res = io_uring_wait_cqe_nr(&ring->ring, &cqe, 1);
     if (res < 0) return res;
 
@@ -96,13 +95,12 @@ int cas_io_ring_get_completions(cas_io_ring* ring, void **output, uint32_t count
     io_uring_for_each_cqe(&ring->ring, head, cqe) {
         if (completed >= count) break;
 
-        // Extract user_data payload pointer
         output[completed] = io_uring_cqe_get_data(cqe);
         completed++;
     }
 
-    // Mark harvested CQEs as seen so liburing can reuse those slots!
+    // Mark harvested CQEs for liburing to reuse
     io_uring_cq_advance(&ring->ring, completed);
 
-    return (int)completed; // Return how many completions were harvested
+    return (int)completed;
 }

@@ -82,6 +82,7 @@ int cas_hex_to_hash(const char *hex, cas_hash_t *hash) {
 
 int cas_crypto_encrypt(const uint8_t *p_text, size_t len, uint8_t *c_text, uint32_t *c_len) {
     if (!p_text || !c_text || !c_len) return -1;
+
     ensure_crypto();
     if (!crypto_initialized) return -1;
 
@@ -91,13 +92,13 @@ int cas_crypto_encrypt(const uint8_t *p_text, size_t len, uint8_t *c_text, uint3
     memcpy(c_text, nonce, NONCE_LEN);
 
     if (crypto_secretbox_easy(c_text + NONCE_LEN, p_text, len, nonce, crypto_key) != 0) return -1;
-
     *c_len = NONCE_LEN + len + crypto_secretbox_MACBYTES;
     return 0;
 }
 
 int cas_crypto_decrypt(const uint8_t *c_text, uint32_t len, uint8_t *p_text, uint32_t *p_len) {
     if (!p_text || !c_text || !p_len) return -1;
+
     ensure_crypto();
     if (!crypto_initialized) return -1;
 
@@ -105,7 +106,6 @@ int cas_crypto_decrypt(const uint8_t *c_text, uint32_t len, uint8_t *p_text, uin
 
     const uint8_t *nonce = c_text;
     if (crypto_secretbox_open_easy(p_text, c_text + NONCE_LEN, len - NONCE_LEN, nonce, crypto_key) != 0) return -1;
-
     *p_len = len - NONCE_LEN - crypto_secretbox_MACBYTES;
     return 0;
 }
